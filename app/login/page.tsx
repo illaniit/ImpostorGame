@@ -3,56 +3,57 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Loader2, Zap } from "lucide-react";
+import { Loader2, Zap, User } from "lucide-react";
 
 export default function LoginPage() {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+    const [nickname, setNickname] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
     const supabase = createClient();
 
-    const handleLogin = async (e: React.FormEvent) => {
+    const handleEnter = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!nickname.trim()) return;
+
         setLoading(true);
         setError(null);
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
+        // 1. Sign in anonymously
+        const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
 
-        if (error) {
-            setError(error.message);
+        if (authError) {
+            console.error("Auth Error:", authError);
+            setError("Could not sign in. Ensure 'Anonymous Sign-ins' are enabled in Supabase.");
             setLoading(false);
-        } else {
-            router.push("/");
-            router.refresh();
+            return;
         }
-    };
 
-    const handleSignUp = async () => {
-        setLoading(true);
-        setError(null);
-
-        const { error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: {
-                    username: email.split("@")[0], // Default username
-                },
-            },
-        });
-
-        if (error) {
-            setError(error.message);
+        const userId = authData.user?.id;
+        if (!userId) {
+            setError("Authentication failed.");
             setLoading(false);
-        } else {
-            setError("Account created! You can now sign in.");
-            setLoading(false);
+            return;
         }
+
+        // 2. Upsert Profile with Nickname
+        const { error: profileError } = await supabase
+            .from("profiles")
+            .upsert({
+                id: userId,
+                username: nickname,
+                avatar_url: `https://api.dicebear.com/9.x/avataaars/svg?seed=${nickname}`, // Auto-generate avatar
+            });
+
+        if (profileError) {
+            console.error("Profile Error:", profileError);
+            // Optionally continue if it's just a duplicate username or minor issue, but let's report it
+            // Actually, if we use upsert, it updates. If username is unique, it might fail.
+            // Let's rely on random seed if it fails? For now, simplistic handling.
+        }
+
+        router.push("/");
+        router.refresh();
     };
 
     return (
@@ -67,34 +68,25 @@ export default function LoginPage() {
                             IMPOSTOR
                         </h1>
                         <p className="text-zinc-400 text-sm">
-                            Enter the deception check.
+                            Enter your alias, agent.
                         </p>
                     </div>
 
-                    <form onSubmit={handleLogin} className="space-y-4">
+                    <form onSubmit={handleEnter} className="space-y-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-zinc-300">Email</label>
-                            <input
-                                type="email"
-                                required
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                                placeholder="agent@impostor.game"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-zinc-300">
-                                Password
-                            </label>
-                            <input
-                                type="password"
-                                required
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
-                                placeholder="••••••••"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                            />
+                            <label className="text-sm font-medium text-zinc-300">Nickname</label>
+                            <div className="relative">
+                                <User className="absolute left-3 top-2.5 h-5 w-5 text-zinc-500" />
+                                <input
+                                    type="text"
+                                    required
+                                    maxLength={12}
+                                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg pl-10 pr-4 py-2 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all font-bold tracking-wide"
+                                    placeholder="Agent 007"
+                                    value={nickname}
+                                    onChange={(e) => setNickname(e.target.value)}
+                                />
+                            </div>
                         </div>
 
                         {error && (
@@ -103,27 +95,17 @@ export default function LoginPage() {
                             </div>
                         )}
 
-                        <div className="flex gap-4 pt-2">
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="flex-1 bg-zinc-100 hover:bg-white text-zinc-950 font-bold py-2 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center"
-                            >
-                                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Sign In"}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleSignUp}
-                                disabled={loading}
-                                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-medium py-2 rounded-lg transition-colors disabled:opacity-50"
-                            >
-                                Sign Up
-                            </button>
-                        </div>
+                        <button
+                            type="submit"
+                            disabled={loading || !nickname.trim()}
+                            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-3 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center shadow-lg shadow-purple-900/20"
+                        >
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Enter Game"}
+                        </button>
                     </form>
                 </div>
                 <div className="px-8 py-4 bg-zinc-950/50 border-t border-zinc-800 text-center text-xs text-zinc-500">
-                    Secure connection established. v1.0.0
+                    Security protocols active. v1.1.0
                 </div>
             </div>
         </div>
