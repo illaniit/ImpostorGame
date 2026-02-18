@@ -57,20 +57,12 @@ export async function startGame(roomId: string, impostorCount: number) {
 export async function votePlayer(roomId: string, playerId: string) {
     const supabase = await createClient();
 
-    // Increment vote
-    // We should ensure a user only votes once per round. 
-    // MVP: Just increment. Clientside state limits.
-    await supabase.rpc('increment_vote', { p_player_id: playerId });
-    // Or direct update:
-    // const { data } = await supabase.from('players').select('votes_received').eq('id', playerId).single();
-    // await supabase.from('players').update({ votes_received: (data?.votes_received || 0) + 1 }).eq('id', playerId);
+    // Use the RPC we just created
+    const { error } = await supabase.rpc('increment_vote', { p_player_id: playerId });
 
-    // Better: RPC to avoid race conditions.
-    // create function increment_vote(p_player_id uuid) returns void as $$ update players set votes_received = votes_received + 1 where id = p_player_id; $$;
-    // I'll try direct update for now via fetch-update.
-
-    // Check if everyone voted? 
-    // That logic is complex for MVP. Host manual "End Voting" button is better.
+    if (error) {
+        console.error("Vote failed:", error);
+    }
 }
 
 export async function eliminatePlayer(roomId: string, playerId: string) {
@@ -79,14 +71,18 @@ export async function eliminatePlayer(roomId: string, playerId: string) {
     // Set is_alive = false
     await supabase.from("players").update({ is_alive: false }).eq("id", playerId);
 
-    // Reset votes
-    await supabase.from("players").update({ votes_received: 0 }).eq("room_id", roomId);
+    // Reset votes for next round (if continuing)
+    // Actually, we should probably reset votes at start of round, but let's do it here or via RPC
+    await supabase.rpc('reset_votes', { p_room_id: roomId });
 
     // Check Win Condition
     const { data: result, error } = await supabase.rpc('check_game_over', { p_room_id: roomId });
     if (error) console.error("Win check failed", error);
 
-    // If result is 'CONTINUE', maybe move back to Discussion?
-    // Room status stays 'PLAYING'.
-    // Phase logic via room status 'VOTING' vs 'PLAYING'.
+    // If result is 'CIVILIANS_WIN' or 'IMPOSTORS_WIN', the RPC already updated the room status to 'ENDED'.
+    // If 'CONTINUE', we might want to go back to DISCUSSION?
+    // Let's assume the host manually moves to Discussion or we auto-move.
+    if (result === 'CONTINUE') {
+        await supabase.from("rooms").update({ status: "PLAYING" }).eq("id", roomId);
+    }
 }

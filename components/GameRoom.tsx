@@ -96,14 +96,14 @@ export default function GameRoom({ room: initialRoom, players: initialPlayers, u
                                 <div key={p.id}
                                     onClick={async () => {
                                         // Handle Vote
-                                        if (room.status === 'VOTING' && !isMe && p.is_alive) {
+                                        if (room.status === 'VOTING' && !isMe && p.is_alive && !myPlayer?.has_voted) {
                                             const { votePlayer } = await import("@/lib/actions/game");
                                             await votePlayer(room.id, p.id);
                                         }
                                     }}
                                     className={`bg-zinc-900/50 border p-4 rounded-xl flex flex-col items-center gap-2 relative group transition-all
-                            ${!p.is_alive ? 'opacity-50 grayscale border-zinc-800' : 'border-zinc-700 hover:border-purple-500 cursor-pointer'}
-                            ${room.status === 'VOTING' ? 'hover:scale-105' : ''}
+                            ${!p.is_alive ? 'opacity-50 grayscale border-zinc-800' : 'border-zinc-700'}
+                            ${room.status === 'VOTING' && !isMe && p.is_alive && !myPlayer?.has_voted ? 'hover:border-purple-500 cursor-pointer hover:scale-105' : ''}
                          `}>
                                     {room.host_id === p.user_id && <Crown className="w-5 h-5 text-yellow-500 absolute top-2 right-2" />}
                                     {!p.is_alive && <Skull className="w-8 h-8 text-red-500 absolute z-10 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />}
