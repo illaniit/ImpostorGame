@@ -97,6 +97,13 @@ export default function GameRoom({ room: initialRoom, players: initialPlayers, u
                                     onClick={async () => {
                                         // Handle Vote
                                         if (room.status === 'VOTING' && !isMe && p.is_alive && !myPlayer?.has_voted) {
+                                            // Optimistic Update (Prevent double click immediately)
+                                            if (myPlayer) {
+                                                myPlayer.has_voted = true;
+                                                // Force re-render would be ideal, but modifying store directly via updatePlayer is better pattern.
+                                                // Assume store update is async via realtime, but let's try to block interaction first.
+                                            }
+
                                             const { votePlayer } = await import("@/lib/actions/game");
                                             await votePlayer(room.id, p.id);
                                         }

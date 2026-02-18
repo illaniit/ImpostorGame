@@ -16,6 +16,7 @@ export interface Player {
     user_id: string;
     is_alive: boolean;
     votes_received: number;
+    has_voted: boolean; // Added for vote limiting
     created_at: string;
     // Enriched fields from profiles
     username?: string;
