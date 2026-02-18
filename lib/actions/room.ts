@@ -22,6 +22,27 @@ export async function createRoom(formData: FormData) {
         redirect("/login");
     }
 
+    // Ensure profile exists (Robust handling)
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .single();
+
+    if (!profile) {
+        console.log("Profile missing for user, creating now...", user.id);
+        const { error: profileError } = await supabase.from("profiles").insert({
+            id: user.id,
+            username: user.email?.split("@")[0] || "user",
+            avatar_url: "",
+            is_admin: false
+        });
+        if (profileError) {
+            console.error("Failed to auto-create profile:", profileError);
+            // Continue anyway, maybe trigger handled it or race condition
+        }
+    }
+
     const impostorCount = parseInt(formData.get("impostorCount") as string) || 1;
     let code = generateCode();
     let unique = false;
@@ -40,6 +61,8 @@ export async function createRoom(formData: FormData) {
         }
     }
 
+    console.log(`Creating room with code: ${code} for host: ${user.id}`);
+
     const { data: room, error } = await supabase
         .from("rooms")
         .insert({
@@ -53,15 +76,9 @@ export async function createRoom(formData: FormData) {
 
     if (error) {
         console.error("Error creating room:", error);
-        throw new Error("Failed to create room");
+        throw new Error("Failed to create room: " + error.message);
     }
 
-    // We don't join the player here implicitly; the client will navigate and the Room component will handle "Join/Subscribe".
-    // Actually, standard pattern is to insert the player record now?
-    // User req: "Join Room: Input code. Lobby State: Show list."
-    // If host creates it, they should be in it.
-    // I'll redirect, and let the Room Page logic handle "If I am authenticated and opening this page, add me to players if not already".
-    // This allows refreshing to work robustly.
-
+    console.log("Room created successfully, redirecting...");
     redirect(`/room/${code}`);
 }
