@@ -2,7 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import GameRoom from "@/components/GameRoom";
 
-export default async function Page({ params }: { params: { code: string } }) {
+export default async function Page(props: { params: Promise<{ code: string }> }) {
+    const params = await props.params;
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
